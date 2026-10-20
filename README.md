@@ -25,7 +25,8 @@ Adresse : `https://shekinabanza.github.io/SHEKI-BANG/`
 ## Fichiers
 | Chemin | Rôle |
 |---|---|
-| `index.html`, `css/style.css`, `js/game.js` | Le jeu |
+| `index.html`, `css/style.css`, `js/game.js` | Le jeu (rendu 3D avec Three.js) |
+| `vendor/three.module.min.js` | Moteur 3D Three.js (copie locale, marche hors connexion) |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Installation sur téléphone et jeu hors connexion |
 | `test/bot.js` | Robot qui joue les niveaux pour vérifier l'équilibrage |
 | `test/shots.js` | Captures d'écran de contrôle |
