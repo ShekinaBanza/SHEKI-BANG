@@ -8,7 +8,7 @@ Jeu mobile (PWA) : ton canon tire une armée **verte**, les portes la multiplien
 - **Maintiens le doigt** pour tirer, **glisse** pour viser les meilleures portes.
 - Évite les portes rouges **−N** (elles absorbent tes soldats), les lames qui tournent et le vide autour des ponts.
 - Le bouton **SUPER** se charge en tirant : il lance un super soldat très résistant.
-- Si l'armée bleue atteint ton rempart, tu perds des PV ; à zéro, la partie est perdue.
+- Si l'armée bleue atteint ton rempart, tu perds des PV ; à zéro, la partie est perdue. Dès le niveau 8, il faut améliorer son canon pour suivre.
 - Gagne des pièces et améliore **Cadence**, **Rempart** et **Super soldat**.
 
 ## Niveaux infinis

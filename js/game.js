@@ -37,11 +37,11 @@ if (!save.seed) { save.seed = (Math.random() * 4294967296) >>> 0 || 7; store.set
 const persist = () => { store.set("level", save.level); store.set("coins", save.coins); store.set("up", save.up); store.set("seed", save.seed); };
 const UPG = {
   rate: { name: "Cadence", icon: "⚡", desc: (l) => (9 + l).toString() + " tirs/s", cost: (l) => Math.round(40 * Math.pow(1.45, l)) },
-  wall: { name: "Rempart", icon: "🛡", desc: (l) => 20 + l * 4 + " PV", cost: (l) => Math.round(35 * Math.pow(1.4, l)) },
+  wall: { name: "Rempart", icon: "🛡", desc: (l) => 15 + l * 4 + " PV", cost: (l) => Math.round(35 * Math.pow(1.4, l)) },
   super: { name: "Champion", icon: "★", desc: (l) => "prêt en " + Math.max(12, 36 - l * 3) + " tirs", cost: (l) => Math.round(50 * Math.pow(1.5, l)) },
 };
 const fireRate = () => 9 + save.up.rate;
-const wallHP = () => 20 + save.up.wall * 4;
+const wallHP = () => 15 + save.up.wall * 4;
 const superNeed = () => Math.max(12, 36 - save.up.super * 3);
 
 // ---------------- level generation (endless) ----------------
@@ -60,7 +60,7 @@ function genLevel(n) {
   let z = 10 + r() * 3;
   for (let i = 0; i < nRows && z < 40; i++) {
     const late = i >= 1, pick = () => {
-      const q = r(), bad = n >= 3 && r() < Math.min(0.35, 0.1 + d * 0.012);
+      const q = r(), bad = n >= 2 && r() < Math.min(0.45, 0.15 + d * 0.015);
       if (bad) return { op: "-", v: 10 + Math.floor(r() * (10 + d * 4)) };
       if (q < 0.4) return { op: "+", v: [1, 1, 2, 2, 3, 4][Math.floor(r() * (late ? 6 : 4))] };
       return { op: "x", v: [2, 2, 3, 3, 4, 5][Math.floor(r() * (late ? 6 : 4))] };
@@ -86,12 +86,12 @@ function genLevel(n) {
     if (m > expMult) { expMult = m; bestX = x; }
   }
   expMult = Math.min(40, expMult); L.bestX = bestX;
-  const k = Math.min(0.85, 0.42 + d * 0.022), out = 9 * expMult;
-  L.enemyRate = out * k * 0.42; L.spawnEvery = 0.55; L.wave = Math.max(1, Math.round(L.enemyRate * 0.55));
-  L.army = Math.round(L.enemyRate * (14 + Math.min(14, d * 0.8)));
-  L.enemySpeed = 4.2 + Math.min(2.6, d * 0.08);
-  L.baseHP = Math.max(60, Math.round((out * (1 - k * 0.42) * (20 + Math.min(18, d)) * 0.2 * (boss ? 1.4 : 1)) / 10) * 10);
-  L.giantEvery = n >= 3 ? Math.max(5, 13 - d * 0.35) : 0; L.giantHP = Math.round(10 + expMult * 1.5 + d * 2);
+  const k = Math.min(1.1, 0.62 + d * 0.03), out = 9 * expMult;
+  L.enemyRate = out * k * 0.82; L.spawnEvery = 0.5; L.wave = Math.max(1, Math.round(L.enemyRate * 0.55));
+  L.army = Math.round(L.enemyRate * (17 + Math.min(16, d * 0.9)));
+  L.enemySpeed = 4.6 + Math.min(3, d * 0.1);
+  L.baseHP = Math.max(80, Math.round((out * Math.max(0.25, 1 - k * 0.6) * (22 + Math.min(20, d)) * 0.3 * (boss ? 1.5 : 1)) / 10) * 10);
+  L.giantEvery = n >= 2 ? Math.max(4, 11 - d * 0.35) : 0; L.giantHP = Math.round(14 + expMult * 2 + d * 3);
   L.bossHP = boss ? Math.round(out * 5) : 0;
   L.decoSeed = mix(save.seed, n + 999);
   return L;
@@ -111,20 +111,39 @@ const M = (color, extra) => new THREE.MeshToonMaterial(Object.assign({ color, gr
 const W2 = (gx) => gx * HALF;           // game x (-1..1) -> metres
 const Z3 = (gz) => -gz;                 // game z (forward) -> three z
 
-// characters: one capsule body shared by every soldier, eyes as separate instanced meshes (enemies face the camera)
-const MAXU = 900, MAXE = 700, MAXB = 40;
-const bodyGeo = new THREE.CapsuleGeometry(0.24, 0.3, 4, 10); bodyGeo.translate(0, 0.45, 0);
-function twoSpheres(r, dx, y, z) { const a = new THREE.SphereGeometry(r, 8, 6).toNonIndexed(); a.translate(-dx, y, z); const b = new THREE.SphereGeometry(r, 8, 6).toNonIndexed(); b.translate(dx, y, z); const g = new THREE.BufferGeometry(); for (const k of ["position", "normal"]) { const A = a.getAttribute(k).array, B = b.getAttribute(k).array, C = new Float32Array(A.length + B.length); C.set(A); C.set(B, A.length); g.setAttribute(k, new THREE.BufferAttribute(C, 3)); } return g; }
-const eyeGeo = twoSpheres(0.09, 0.1, 0.6, 0.18), pupilGeo = twoSpheres(0.048, 0.1, 0.6, 0.25);
-const backGeo = new THREE.SphereGeometry(0.12, 8, 6); backGeo.scale(1.1, 1, 0.6); backGeo.translate(0, 0.5, 0.24); // little backpack on the green squad
+// characters: little toy soldiers built from simple parts. Every part is one instanced mesh, so hundreds stay cheap.
+// Green squad is seen from behind (backpack), the dark-blue army faces the camera (eyes, red badge).
+const MAXU = 900, MAXE = 700;
+function merge(list) { // merge non-indexed geometries (position + normal)
+  const gs = list.map((g) => (g.index ? g.toNonIndexed() : g)), g = new THREE.BufferGeometry();
+  for (const k of ["position", "normal"]) { const n = gs.reduce((a, x) => a + x.getAttribute(k).array.length, 0), C = new Float32Array(n); let o = 0; for (const x of gs) { C.set(x.getAttribute(k).array, o); o += x.getAttribute(k).array.length; } g.setAttribute(k, new THREE.BufferAttribute(C, 3)); }
+  return g;
+}
+const at = (g, x, y, z, rx, ry, rz) => { if (rx) g.rotateX(rx); if (ry) g.rotateY(ry); if (rz) g.rotateZ(rz); g.translate(x, y, z); return g; };
+const torsoGeo = merge([at(new THREE.CapsuleGeometry(0.16, 0.2, 4, 10), 0, 0.6, 0), at(new THREE.CylinderGeometry(0.17, 0.17, 0.06, 12), 0, 0.5, 0)]);
+const armsGeo = merge([at(new THREE.CapsuleGeometry(0.055, 0.2, 3, 6), -0.19, 0.6, -0.08, -0.9), at(new THREE.CapsuleGeometry(0.055, 0.2, 3, 6), 0.19, 0.6, -0.08, -0.9)]);
+const headGeo = at(new THREE.SphereGeometry(0.14, 12, 10), 0, 0.9, 0);
+const helmetGeo = merge([at(new THREE.SphereGeometry(0.165, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0, 0.93, 0), at(new THREE.CylinderGeometry(0.2, 0.2, 0.035, 14), 0, 0.93, 0)]);
+const gunGeo = merge([at(new THREE.BoxGeometry(0.06, 0.07, 0.36), 0.04, 0.6, -0.3), at(new THREE.BoxGeometry(0.05, 0.12, 0.08), 0.04, 0.54, -0.18), at(new THREE.CylinderGeometry(0.018, 0.018, 0.16, 6), 0.04, 0.62, -0.54, Math.PI / 2)]);
+const packGeo = merge([at(new THREE.BoxGeometry(0.24, 0.26, 0.12), 0, 0.64, 0.2), at(new THREE.CylinderGeometry(0.05, 0.05, 0.24, 8), 0, 0.8, 0.22, 0, 0, Math.PI / 2)]);
+const legGeo = at(new THREE.CapsuleGeometry(0.06, 0.2, 3, 6), 0, -0.13, 0); // hangs from the hip pivot
+const bootGeo = at(new THREE.BoxGeometry(0.1, 0.07, 0.15), 0, -0.3, -0.03);
+const eyeGeo = merge([at(new THREE.SphereGeometry(0.04, 8, 6), -0.055, 0.91, -0.12), at(new THREE.SphereGeometry(0.04, 8, 6), 0.055, 0.91, -0.12)]);
+const pupilGeo = merge([at(new THREE.SphereGeometry(0.022, 6, 5), -0.055, 0.91, -0.155), at(new THREE.SphereGeometry(0.022, 6, 5), 0.055, 0.91, -0.155)]);
+const badgeGeo = at(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 5), 0, 1.0, -0.15, Math.PI / 2);
 const mkInst = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.count = 0; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); return m; };
-const uBody = mkInst(bodyGeo, M(0x3fdc52), MAXU), uPack = mkInst(backGeo, M(0x1f8f36), MAXU);
-const eBody = mkInst(bodyGeo, M(0x22398f), MAXE), eEyes = mkInst(eyeGeo, M(0xffffff), MAXE), ePup = mkInst(pupilGeo, M(0x111111), MAXE);
-const bBody = mkInst(bodyGeo, M(0xffffff), MAXB), bEyes = mkInst(eyeGeo, M(0xffffff), MAXB), bPup = mkInst(pupilGeo, M(0x111111), MAXB);
-bBody.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAXB * 3), 3);
+function army(n, c) { // c: colours of one side
+  const a = { body: [], legs: [] };
+  for (const [g, col] of c.parts) a.body.push(mkInst(g, M(col), n));
+  a.legs = [mkInst(legGeo, M(c.legs), n * 2), mkInst(bootGeo, M(0x2b2420), n * 2)];
+  return a;
+}
+const SKIN = 0xf3c08f;
+const GREEN = army(MAXU + 8, { parts: [[torsoGeo, 0x4caf3f], [armsGeo, 0x4caf3f], [headGeo, SKIN], [helmetGeo, 0x2e7d2c], [gunGeo, 0x2b2f36], [packGeo, 0x7a6a38]], legs: 0x3a8a33 });
+const BLUE = army(MAXE + 40, { parts: [[torsoGeo, 0x24387f], [armsGeo, 0x24387f], [headGeo, SKIN], [helmetGeo, 0x142050], [gunGeo, 0x2b2f36], [eyeGeo, 0xffffff], [pupilGeo, 0x111111], [badgeGeo, 0xff3b3b]], legs: 0x1b2a63 });
 const shadowGeo = new THREE.CircleGeometry(0.26, 12); shadowGeo.rotateX(-Math.PI / 2);
-const shadows = mkInst(shadowGeo, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false }), MAXU + MAXE + MAXB);
-const tmp = new THREE.Object3D(), col = new THREE.Color();
+const shadows = mkInst(shadowGeo, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false }), MAXU + MAXE + 60);
+const tmp = new THREE.Object3D(), col = new THREE.Color(), base = new THREE.Matrix4(), hip = new THREE.Matrix4(), swing = new THREE.Matrix4(), leg = new THREE.Matrix4();
 
 // particles
 const PMAX = 1600, pPos = new Float32Array(PMAX * 3), pCol = new Float32Array(PMAX * 3);
@@ -400,34 +419,28 @@ function syncScene(dt) {
   for (const hm of hazardMeshes) hm.arm.rotation.y = hm.h.a + G.t * hm.h.speed;
   baseMesh.scale.setScalar(1 + (G.base < G.baseMax && Math.random() < 0.3 ? 0.01 : 0));
   tubeFill.scale.y = Math.max(0.05, Math.min(3.2, 0.1 + G.earned / 25 + G.kills / 400)); tubeFill.position.y = 0.3 + tubeFill.scale.y / 2;
-  // soldiers
-  let nu = 0, ns = 0, nb = 0;
-  for (const u of units) {
-    if (u.big) continue;
-    const y = Math.abs(Math.sin(u.wob)) * 0.12;
-    tmp.position.set(W2(u.x), y, Z3(u.z)); tmp.rotation.set(0, 0, Math.sin(u.wob) * 0.12); tmp.scale.setScalar(1); tmp.updateMatrix();
-    uBody.setMatrixAt(nu, tmp.matrix); uPack.setMatrixAt(nu, tmp.matrix); nu++;
+  // soldiers: body parts share one matrix, legs swing from the hip
+  const cnt = { g: 0, b: 0, gl: 0, bl: 0 }; let ns = 0;
+  const put = (A, side, x, z, wob, scale, facing) => {
+    const y = Math.abs(Math.sin(wob)) * 0.06 * scale;
+    tmp.position.set(x, y, z); tmp.rotation.set(0, facing, Math.sin(wob) * 0.06); tmp.scale.setScalar(scale); tmp.updateMatrix();
+    const i = cnt[side]; for (const m of A.body) m.setMatrixAt(i, tmp.matrix); cnt[side]++;
+    base.copy(tmp.matrix);
+    for (const sgn of [-1, 1]) {
+      hip.makeTranslation(sgn * 0.08, 0.42, 0); swing.makeRotationX(Math.sin(wob) * 0.7 * sgn);
+      leg.multiplyMatrices(base, hip).multiply(swing);
+      const k = cnt[side + "l"]++; A.legs[0].setMatrixAt(k, leg); A.legs[1].setMatrixAt(k, leg);
+    }
     tmp.position.y = 0.02; tmp.rotation.set(0, 0, 0); tmp.updateMatrix(); shadows.setMatrixAt(ns++, tmp.matrix);
-  }
-  let ne = 0;
-  for (const e of enemies) {
-    if (e.kind !== "soldier") continue;
-    const y = Math.abs(Math.sin(e.wob)) * 0.12;
-    tmp.position.set(W2(e.x), y, Z3(e.z)); tmp.rotation.set(0, 0, Math.sin(e.wob) * 0.12); tmp.scale.setScalar(1); tmp.updateMatrix();
-    eBody.setMatrixAt(ne, tmp.matrix); eEyes.setMatrixAt(ne, tmp.matrix); ePup.setMatrixAt(ne, tmp.matrix); ne++;
-    tmp.position.y = 0.02; tmp.rotation.set(0, 0, 0); tmp.updateMatrix(); shadows.setMatrixAt(ns++, tmp.matrix);
-  }
-  const bigs = units.filter((u) => u.big).map((u) => [u, 2.2, 0x6dff6a, Math.PI]).concat(enemies.filter((e) => e.kind !== "soldier").map((e) => [e, e.kind === "boss" ? 4.6 : 2.4, e.kind === "boss" ? 0x2a3f9f : 0x1d3388, 0]));
-  for (const [o, s, c, ry] of bigs) {
-    if (nb >= MAXB) break;
-    tmp.position.set(W2(o.x), Math.abs(Math.sin(o.wob * 0.6)) * 0.15 * s, Z3(o.z)); tmp.rotation.set(0, ry, Math.sin(o.wob * 0.6) * 0.08); tmp.scale.setScalar(s); tmp.updateMatrix();
-    bBody.setMatrixAt(nb, tmp.matrix); col.setHex(c); bBody.setColorAt(nb, col);
-    if (ry) { tmp.scale.setScalar(0.0001); tmp.updateMatrix(); }
-    bEyes.setMatrixAt(nb, tmp.matrix); bPup.setMatrixAt(nb, tmp.matrix); nb++;
-    tmp.position.y = 0.02; tmp.rotation.set(0, 0, 0); tmp.scale.setScalar(s); tmp.updateMatrix(); shadows.setMatrixAt(ns++, tmp.matrix);
-  }
-  for (const [m, n] of [[uBody, nu], [uPack, nu], [eBody, ne], [eEyes, ne], [ePup, ne], [bBody, nb], [bEyes, nb], [bPup, nb], [shadows, ns]]) { m.count = n; m.instanceMatrix.needsUpdate = true; }
-  if (bBody.instanceColor) bBody.instanceColor.needsUpdate = true;
+  };
+  for (const u of units) if (!u.big) put(GREEN, "g", W2(u.x), Z3(u.z), u.wob, 1, 0);
+  for (const u of units) if (u.big) put(GREEN, "g", W2(u.x), Z3(u.z), u.wob * 0.6, 2.3, 0);
+  for (const e of enemies) put(BLUE, "b", W2(e.x), Z3(e.z), e.kind === "soldier" ? e.wob : e.wob * 0.6, e.kind === "boss" ? 4.8 : e.kind === "giant" ? 2.5 : 1, Math.PI);
+  for (const m of GREEN.body) { m.count = cnt.g; m.instanceMatrix.needsUpdate = true; }
+  for (const m of BLUE.body) { m.count = cnt.b; m.instanceMatrix.needsUpdate = true; }
+  for (const m of GREEN.legs) { m.count = cnt.gl; m.instanceMatrix.needsUpdate = true; }
+  for (const m of BLUE.legs) { m.count = cnt.bl; m.instanceMatrix.needsUpdate = true; }
+  shadows.count = ns; shadows.instanceMatrix.needsUpdate = true;
   // particles
   for (let i = 0; i < PMAX; i++) {
     const p = parts[i];
