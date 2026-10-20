@@ -102,12 +102,61 @@ const cv = $("cv"), ov = $("ov"), o2 = ov.getContext("2d");
 const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const pmrem = new THREE.PMREMGenerator(renderer);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 400);
-const hemi = new THREE.HemisphereLight(0xffffff, 0x8a6a4a, 1.25); scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(-8, 20, 10); scene.add(sun);
-const toon = (() => { const d = new Uint8Array([90, 170, 255]); const t = new THREE.DataTexture(d, 3, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
-const M = (color, extra) => new THREE.MeshToonMaterial(Object.assign({ color, gradientMap: toon }, extra || {}));
+const hemi = new THREE.HemisphereLight(0xdfefff, 0x8a6a4a, 0.4); scene.add(hemi);
+// warm low sun with soft shadows covering the whole battlefield
+const sun = new THREE.DirectionalLight(0xfff1d6, 3.0); sun.position.set(-14, 26, 6); scene.add(sun); scene.add(sun.target); sun.target.position.set(0, 0, -24);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+Object.assign(sun.shadow.camera, { left: -26, right: 26, top: 40, bottom: -40, near: 1, far: 110 }); sun.shadow.camera.updateProjectionMatrix();
+// physically based materials (react to light, sky reflections and shadows)
+const M = (color, extra) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.78, metalness: 0 }, extra || {}));
+// procedural textures, so the scene has grain without image files
+function canvasTex(w, h, paint, repeatX, repeatY) {
+  const c = document.createElement("canvas"); c.width = w; c.height = h; paint(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeatX || 1, repeatY || 1); t.anisotropy = 8; return t;
+}
+function noise(g, w, h, base, spread, n, size) {
+  g.fillStyle = base; g.fillRect(0, 0, w, h);
+  const r = mulberry32(w * 7 + n);
+  for (let i = 0; i < n; i++) { const v = (r() - 0.5) * spread; g.fillStyle = v > 0 ? "rgba(255,255,255," + v + ")" : "rgba(0,0,0," + -v + ")"; const s = 1 + r() * size; g.fillRect(r() * w, r() * h, s, s); }
+}
+const hex = (n) => "#" + n.toString(16).padStart(6, "0");
+const TEX = {
+  asphalt: canvasTex(256, 256, (g, w, h) => { noise(g, w, h, "#5e636e", 0.22, 9000, 2.2); for (let i = 0; i < 18; i++) { g.strokeStyle = "rgba(20,20,25,0.25)"; g.lineWidth = 1; g.beginPath(); let x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (Math.random() - 0.5) * 30; y += Math.random() * 20; g.lineTo(x, y); } g.stroke(); } }, 2, 14),
+  wood: canvasTex(128, 128, (g, w, h) => { g.fillStyle = "#9a6434"; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 3) { g.fillStyle = "rgba(60,30,10," + (0.08 + Math.random() * 0.18) + ")"; g.fillRect(0, y, w, 1 + Math.random() * 1.5); } for (let i = 0; i < 4; i++) { g.strokeStyle = "rgba(50,25,8,0.35)"; g.beginPath(); g.ellipse(Math.random() * w, Math.random() * h, 6, 3, 0, 0, 6.3); g.stroke(); } }),
+  stone: canvasTex(256, 256, (g, w, h) => { noise(g, w, h, "#1f2f66", 0.18, 3000, 2); g.strokeStyle = "rgba(5,10,30,0.55)"; g.lineWidth = 3; for (let y = 0; y < h; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); for (let x = (y / 32) % 2 ? 0 : 32; x < w; x += 64) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 32); g.stroke(); } } }, 2, 1),
+};
+const groundTexCache = {};
+function groundTex(th) {
+  if (groundTexCache[th.name]) return groundTexCache[th.name];
+  const t = canvasTex(512, 512, (g, w, h) => {
+    noise(g, w, h, hex(th.ground), th.deco === "pine" ? 0.1 : 0.22, 14000, 2.5);
+    for (let i = 0; i < 70; i++) { g.fillStyle = hex(th.ground2) + "55"; g.beginPath(); g.ellipse(Math.random() * w, Math.random() * h, 10 + Math.random() * 40, 6 + Math.random() * 24, Math.random() * 3, 0, 6.3); g.fill(); }
+    if (th.deco === "tree") for (let i = 0; i < 2600; i++) { g.strokeStyle = Math.random() < 0.5 ? "rgba(40,110,30,0.5)" : "rgba(170,230,120,0.35)"; g.beginPath(); const x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); g.lineTo(x + (Math.random() - 0.5) * 3, y - 3 - Math.random() * 4); g.stroke(); }
+  }, 30, 30);
+  return (groundTexCache[th.name] = t);
+}
+// sky: equirectangular gradient with a sun, used both as background and as reflection light
+let envTex = null;
+function setSky(th) {
+  const sky = canvasTex(1024, 512, (g, w, h) => {
+    const top = new THREE.Color(th.sky).offsetHSL(0, 0.05, -0.12), hor = new THREE.Color(th.fog), gr = new THREE.Color(th.ground2);
+    const grad = g.createLinearGradient(0, 0, 0, h); grad.addColorStop(0, "#" + top.getHexString()); grad.addColorStop(0.47, "#" + new THREE.Color(th.sky).getHexString()); grad.addColorStop(0.5, "#" + hor.getHexString()); grad.addColorStop(0.53, "#" + gr.getHexString()); grad.addColorStop(1, "#" + gr.clone().offsetHSL(0, 0, -0.15).getHexString());
+    g.fillStyle = grad; g.fillRect(0, 0, w, h);
+    const sx = w * 0.38, sy = h * 0.28, sg = g.createRadialGradient(sx, sy, 0, sx, sy, 140); sg.addColorStop(0, "rgba(255,250,235,1)"); sg.addColorStop(0.08, "rgba(255,244,214,0.9)"); sg.addColorStop(0.3, "rgba(255,230,180,0.25)"); sg.addColorStop(1, "rgba(255,230,180,0)");
+    g.fillStyle = sg; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 14; i++) { const cx = Math.random() * w, cy = h * (0.12 + Math.random() * 0.25); for (let k = 0; k < 7; k++) { g.fillStyle = "rgba(255,255,255," + (0.18 + Math.random() * 0.2) + ")"; g.beginPath(); g.ellipse(cx + k * 14 - 40, cy + Math.sin(k) * 5, 24 + Math.random() * 20, 9 + Math.random() * 6, 0, 0, 6.3); g.fill(); } }
+  });
+  sky.mapping = THREE.EquirectangularReflectionMapping; sky.wrapS = THREE.ClampToEdgeWrapping; sky.repeat.set(1, 1);
+  if (scene.background && scene.background.isTexture) scene.background.dispose();
+  scene.background = sky;
+  if (envTex) envTex.dispose();
+  envTex = pmrem.fromEquirectangular(sky).texture; scene.environment = envTex;
+}
 const W2 = (gx) => gx * HALF;           // game x (-1..1) -> metres
 const Z3 = (gz) => -gz;                 // game z (forward) -> three z
 
@@ -131,10 +180,11 @@ const bootGeo = at(new THREE.BoxGeometry(0.1, 0.07, 0.15), 0, -0.3, -0.03);
 const eyeGeo = merge([at(new THREE.SphereGeometry(0.04, 8, 6), -0.055, 0.91, -0.12), at(new THREE.SphereGeometry(0.04, 8, 6), 0.055, 0.91, -0.12)]);
 const pupilGeo = merge([at(new THREE.SphereGeometry(0.022, 6, 5), -0.055, 0.91, -0.155), at(new THREE.SphereGeometry(0.022, 6, 5), 0.055, 0.91, -0.155)]);
 const badgeGeo = at(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 5), 0, 1.0, -0.15, Math.PI / 2);
-const mkInst = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.count = 0; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); return m; };
+const mkInst = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.count = 0; m.frustumCulled = false; m.castShadow = true; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); return m; };
+const MAT_TUNE = { 0x2e7d2c: { roughness: 0.42, metalness: 0.25 }, 0x142050: { roughness: 0.42, metalness: 0.25 }, 0x2b2f36: { roughness: 0.38, metalness: 0.7 }, 0xffffff: { roughness: 0.15 }, 0x111111: { roughness: 0.1 }, 0xf3c08f: { roughness: 0.62 }, 0x7a6a38: { roughness: 0.9 }, 0xff3b3b: { roughness: 0.3, metalness: 0.3, emissive: 0x550000 } };
 function army(n, c) { // c: colours of one side
   const a = { body: [], legs: [] };
-  for (const [g, col] of c.parts) a.body.push(mkInst(g, M(col), n));
+  for (const [g, col] of c.parts) a.body.push(mkInst(g, M(col, MAT_TUNE[col]), n));
   a.legs = [mkInst(legGeo, M(c.legs), n * 2), mkInst(bootGeo, M(0x2b2420), n * 2)];
   return a;
 }
@@ -142,7 +192,7 @@ const SKIN = 0xf3c08f;
 const GREEN = army(MAXU + 8, { parts: [[torsoGeo, 0x4caf3f], [armsGeo, 0x4caf3f], [headGeo, SKIN], [helmetGeo, 0x2e7d2c], [gunGeo, 0x2b2f36], [packGeo, 0x7a6a38]], legs: 0x3a8a33 });
 const BLUE = army(MAXE + 40, { parts: [[torsoGeo, 0x24387f], [armsGeo, 0x24387f], [headGeo, SKIN], [helmetGeo, 0x142050], [gunGeo, 0x2b2f36], [eyeGeo, 0xffffff], [pupilGeo, 0x111111], [badgeGeo, 0xff3b3b]], legs: 0x1b2a63 });
 const shadowGeo = new THREE.CircleGeometry(0.26, 12); shadowGeo.rotateX(-Math.PI / 2);
-const shadows = mkInst(shadowGeo, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false }), MAXU + MAXE + 60);
+const shadows = mkInst(shadowGeo, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.08, depthWrite: false }), MAXU + MAXE + 60); shadows.castShadow = false;
 const tmp = new THREE.Object3D(), col = new THREE.Color(), base = new THREE.Matrix4(), hip = new THREE.Matrix4(), swing = new THREE.Matrix4(), leg = new THREE.Matrix4();
 
 // particles
@@ -166,13 +216,13 @@ function buildLevel(L) {
   if (levelGroup) { scene.remove(levelGroup); levelGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); }
   levelGroup = new THREE.Group(); scene.add(levelGroup); gateMeshes = []; hazardMeshes = [];
   const th = L.theme, r = mulberry32(L.decoSeed);
-  scene.background = new THREE.Color(th.sky); scene.fog = new THREE.Fog(th.fog, 45, 120);
+  setSky(th); scene.fog = new THREE.Fog(th.fog, 55, 150);
   hemi.groundColor.setHex(th.ground2);
   // ground with two tones of stripes for depth
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), M(th.ground)); ground.rotation.x = -Math.PI / 2; ground.position.set(0, -0.02, -60); levelGroup.add(ground);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), M(0xffffff, { map: groundTex(th), roughness: th.deco === "pine" ? 0.55 : 0.95 })); ground.rotation.x = -Math.PI / 2; ground.position.set(0, -0.02, -60); levelGroup.add(ground);
   for (let i = 0; i < 14; i++) { const p = new THREE.Mesh(new THREE.CircleGeometry(3 + r() * 6, 16), M(th.ground2)); p.rotation.x = -Math.PI / 2; p.position.set((r() < 0.5 ? -1 : 1) * (8 + r() * 30), -0.01, -r() * 90 + 6); levelGroup.add(p); }
   // road (with a gap for the bridge)
-  const asphalt = M(0x6b7180), curb = M(0xf2efe6), dash = M(0xffffff);
+  const asphalt = M(0xffffff, { map: TEX.asphalt, roughness: 0.92 }), curb = M(0xf2efe6, { roughness: 0.6 }), dash = M(0xffffff, { roughness: 0.5 });
   const segs = L.bridge ? [[-4, L.bridge.z0], [L.bridge.z1, LEN + 6]] : [[-4, LEN + 6]];
   for (const [a, b] of segs) {
     const len = b - a, mid = (a + b) / 2;
@@ -187,7 +237,7 @@ function buildLevel(L) {
     for (const s of [-1, 1]) { levelGroup.add(box(0.08, 0.08, B.z1 - B.z0, rope, W2(B.x + s * B.half), 0.7, Z3((B.z0 + B.z1) / 2))); for (let z = B.z0; z <= B.z1; z += 1.1) levelGroup.add(box(0.12, 0.8, 0.12, rope, W2(B.x + s * B.half), 0.4, Z3(z))); }
   }
   // wooden fences
-  const wood = M(0x9b6534);
+  const wood = M(0xffffff, { map: TEX.wood, roughness: 0.85 });
   for (const s of [-1, 1]) {
     for (const [a, b] of segs) {
       for (let z = Math.max(0, a); z < b; z += 1.8) levelGroup.add(box(0.14, 0.7, 0.14, wood, s * (HALF + 0.5), 0.35, Z3(z)));
@@ -217,7 +267,7 @@ function buildLevel(L) {
     const w = W2(g.x1 - g.x0) - 0.12, h = 1.5;
     const c = g.op === "-" ? 0xff4d4d : g.op === "+" ? 0x2f8cff : row.jackpot ? 0xffc21a : 0x9b4dff;
     const grp = new THREE.Group();
-    const glass = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.12), new THREE.MeshToonMaterial({ color: c, gradientMap: toon, transparent: true, opacity: 0.55 }));
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.12), new THREE.MeshPhysicalMaterial({ color: c, transparent: true, opacity: 0.55, roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.6 }));
     glass.position.y = h / 2; grp.add(glass);
     const frame = M(new THREE.Color(c).multiplyScalar(0.65).getHex());
     grp.add(box(w + 0.16, 0.42, 0.34, M(c), 0, h + 0.18, 0));
@@ -236,7 +286,7 @@ function buildLevel(L) {
     grp.position.set(W2(h.x), 0, Z3(h.z)); levelGroup.add(grp); hazardMeshes.push({ arm, h });
   }
   // enemy fortress (dark blue)
-  const navy = M(0x1b2c6b), navy2 = M(0x13204f), red = M(0xff3b3b);
+  const navy = M(0xffffff, { map: TEX.stone, roughness: 0.85 }), navy2 = M(0xc8d2ff, { map: TEX.stone, roughness: 0.9 }), red = M(0xe8302f, { roughness: 0.45, metalness: 0.1 });
   baseMesh = new THREE.Group();
   baseMesh.add(box(7.2, 3.4, 2.4, navy, 0, 1.7, 0));
   for (let i = 0; i < 7; i++) baseMesh.add(box(0.7, 0.6, 2.4, navy2, -3.1 + i * 1.03, 3.7, 0));
@@ -247,14 +297,15 @@ function buildLevel(L) {
   baseMesh.position.set(0, 0, Z3(LEN + 1.2)); levelGroup.add(baseMesh);
   // coin tube beside the road (fills with the coins earned in the level)
   tube = new THREE.Group();
-  tube.add(new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 3.6, 18, 1, true), new THREE.MeshToonMaterial({ color: 0xbfe8ff, gradientMap: toon, transparent: true, opacity: 0.35, side: THREE.DoubleSide }))).position.y = 1.9;
+  tube.add(new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 3.6, 18, 1, true), new THREE.MeshPhysicalMaterial({ color: 0xcfeeff, transparent: true, opacity: 0.3, roughness: 0.05, clearcoat: 1, side: THREE.DoubleSide, envMapIntensity: 2 }))).position.y = 1.9;
   tube.add(new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.3, 18), M(0x2f6fd1))).position.y = 0.15;
   tube.add(new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.25, 18), M(0x2f6fd1))).position.y = 3.75;
-  tubeFill = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 1, 18), M(0xffc21a)); tubeFill.position.y = 0.3; tube.add(tubeFill);
+  tubeFill = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 1, 18), M(0xffc21a, { roughness: 0.25, metalness: 0.9 })); tubeFill.position.y = 0.3; tube.add(tubeFill);
   tube.position.set(HALF + 2.6, 0, Z3(8)); levelGroup.add(tube);
+  levelGroup.traverse((o) => { if (o.isMesh) { o.receiveShadow = true; o.castShadow = !o.material.transparent && o !== ground && !(o.geometry.type === "PlaneGeometry" || o.geometry.type === "CircleGeometry"); } });
   // cannon on its cart
   cannon = new THREE.Group();
-  const cg = M(0x2ecc4a), cd = M(0x1a7f30), tyre = M(0x1d2433), hub = M(0xffcf3a);
+  const cg = M(0x2fb84a, { roughness: 0.3, metalness: 0.35 }), cd = M(0x1a6f2c, { roughness: 0.4, metalness: 0.3 }), tyre = M(0x1d2026, { roughness: 0.9 }), hub = M(0xffcf3a, { roughness: 0.25, metalness: 0.9 });
   cannon.add(box(1.7, 0.35, 1.5, cd, 0, 0.45, 0));
   for (const sx of [-0.85, 0.85]) for (const sz of [-0.5, 0.5]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.26, 14), tyre); w.rotation.z = Math.PI / 2; w.position.set(sx, 0.34, sz); cannon.add(w); const hb = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.28, 10), hub); hb.rotation.z = Math.PI / 2; hb.position.set(sx, 0.34, sz); cannon.add(hb); }
   const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.55, 1.9, 16), cg); barrel.rotation.x = -Math.PI / 2 + 0.25; barrel.position.set(0, 1.0, -0.5); cannon.add(barrel);
@@ -263,6 +314,7 @@ function buildLevel(L) {
   cannon.position.set(0, 0, 0.9); levelGroup.add(cannon);
   const lineGeo = new THREE.PlaneGeometry(0.12, 16); lineGeo.rotateX(-Math.PI / 2); lineGeo.translate(0, 0.08, -8);
   aimLine = new THREE.Mesh(lineGeo, new THREE.MeshBasicMaterial({ color: 0xff3b3b, transparent: true, opacity: 0.75, depthWrite: false })); levelGroup.add(aimLine);
+  cannon.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); aimLine.castShadow = false;
 }
 
 // ---------------- state ----------------
@@ -528,12 +580,27 @@ window.addEventListener("resize", resize);
 
 // ---------------- loop ----------------
 let last = performance.now(), acc = 0, hudT = 0, menuT = 0;
+// keep the game smooth on modest phones: step down sharpness, then shadows, if frames get slow
+const Q = { level: 0, t: 0, sum: 0, n: 0 };
+function adaptQuality(dt) {
+  if (document.hidden || Q.level >= 3) return;
+  Q.t += dt; Q.sum += dt; Q.n++;
+  if (Q.t < 3) return;
+  const avg = Q.sum / Q.n; Q.t = 0; Q.sum = 0; Q.n = 0;
+  if (avg < 1 / 40) return;
+  Q.level++;
+  if (Q.level === 1) renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  else if (Q.level === 2) { sun.shadow.mapSize.set(1024, 1024); sun.shadow.map && sun.shadow.map.dispose(); sun.shadow.map = null; renderer.setPixelRatio(1.15); }
+  else { renderer.shadowMap.enabled = false; scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); shadows.material.opacity = 0.2; }
+  resize();
+}
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; acc += dt;
   try { while (acc >= 1 / 60) { update(1 / 60); acc -= 1 / 60; } } catch (err) { console.error(err); acc = 0; }
   if (G.screen === "menu") { menuT += dt; G.cannonX = Math.sin(menuT * 0.6) * 0.5; }
   hudT += dt; if (hudT > 0.15) { hudT = 0; renderHUD(); }
   try { syncScene(dt); renderer.render(scene, camera); drawOverlay(); } catch (err) { console.error(err); }
+  adaptQuality(dt);
   requestAnimationFrame(frame);
 }
 (async () => {
@@ -542,4 +609,4 @@ function frame(now) {
   requestAnimationFrame(frame);
 })();
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
-window.__sb = { G, save, genLevel, startLevel, units: () => units, enemies: () => enemies, L: () => L, step: (k) => { for (let i = 0; i < k && !G.over; i++) update(1 / 60); } };
+window.__sb = { Q, G, save, genLevel, startLevel, units: () => units, enemies: () => enemies, L: () => L, step: (k) => { for (let i = 0; i < k && !G.over; i++) update(1 / 60); } };
