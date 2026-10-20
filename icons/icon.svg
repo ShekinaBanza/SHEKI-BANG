@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="sky" cx="50%" cy="38%" r="75%"><stop offset="0" stop-color="#ffe680"/><stop offset="0.55" stop-color="#ffb13b"/><stop offset="1" stop-color="#f06a1f"/></radialGradient>
+    <linearGradient id="barrel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1e9a37"/><stop offset="0.5" stop-color="#7dff8a"/><stop offset="1" stop-color="#1a8a31"/></linearGradient>
+    <radialGradient id="g" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#a6ff94"/><stop offset="1" stop-color="#159a33"/></radialGradient>
+    <radialGradient id="b" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#3d5cc4"/><stop offset="1" stop-color="#0c173f"/></radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#sky)"/>
+  <g opacity="0.35" fill="#fff6c9">
+    <path d="M256 210 L230 0 L282 0 Z"/><path d="M256 210 L420 30 L456 70 Z"/><path d="M256 210 L512 190 L512 240 Z"/>
+    <path d="M256 210 L92 30 L56 70 Z"/><path d="M256 210 L0 190 L0 240 Z"/>
+  </g>
+  <!-- burst -->
+  <path d="M256 70 l26 52 56-26 -14 58 58 12 -48 36 38 44 -58 2 4 58 -50-30 -12 56 -32-48 -40 40 -4-58 -56 10 30-50 -50-30 56-14 -22-54 56 18 z" fill="#fff3a0" stroke="#e0661a" stroke-width="8" stroke-linejoin="round"/>
+  <!-- enemy blobs -->
+  <ellipse cx="148" cy="150" rx="26" ry="30" fill="url(#b)"/><ellipse cx="370" cy="132" rx="22" ry="26" fill="url(#b)"/>
+  <circle cx="140" cy="146" r="6" fill="#fff"/><circle cx="156" cy="146" r="6" fill="#fff"/><circle cx="364" cy="128" r="5" fill="#fff"/><circle cx="377" cy="128" r="5" fill="#fff"/>
+  <!-- green squad -->
+  <ellipse cx="206" cy="250" rx="30" ry="35" fill="url(#g)"/><ellipse cx="306" cy="240" rx="30" ry="35" fill="url(#g)"/><ellipse cx="256" cy="200" rx="26" ry="30" fill="url(#g)"/>
+  <g fill="#fff"><circle cx="196" cy="244" r="8"/><circle cx="216" cy="244" r="8"/><circle cx="296" cy="234" r="8"/><circle cx="316" cy="234" r="8"/><circle cx="247" cy="195" r="7"/><circle cx="265" cy="195" r="7"/></g>
+  <g fill="#111"><circle cx="198" cy="246" r="4"/><circle cx="218" cy="246" r="4"/><circle cx="298" cy="236" r="4"/><circle cx="318" cy="236" r="4"/><circle cx="249" cy="197" r="3.5"/><circle cx="267" cy="197" r="3.5"/></g>
+  <!-- cannon -->
+  <ellipse cx="256" cy="452" rx="130" ry="22" fill="#000" opacity="0.18"/>
+  <rect x="216" y="300" width="80" height="130" rx="34" fill="url(#barrel)" stroke="#0f5a22" stroke-width="8"/>
+  <ellipse cx="256" cy="304" rx="32" ry="13" fill="#0f5a22"/>
+  <rect x="160" y="400" width="192" height="46" rx="22" fill="#21883a" stroke="#0f5a22" stroke-width="8"/>
+  <circle cx="176" cy="438" r="30" fill="#1d2433"/><circle cx="336" cy="438" r="30" fill="#1d2433"/>
+  <circle cx="176" cy="438" r="12" fill="#ffcf3a"/><circle cx="336" cy="438" r="12" fill="#ffcf3a"/>
+</svg>

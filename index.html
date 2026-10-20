@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>SHEKI BANG</title>
+<meta name="description" content="SHEKI BANG : tire, multiplie ton armée verte avec les portes ×2, ×3, ×100 et écrase l'armée bleue. Niveaux infinis.">
+<meta name="theme-color" content="#16a34a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SHEKI BANG">
+<meta property="og:title" content="SHEKI BANG">
+<meta property="og:image" content="icons/icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="cv" aria-label="Champ de bataille"></canvas>
+
+<div id="hud" hidden>
+  <div class="top">
+    <div class="pill lvl"><b id="hLevel">NIVEAU 1</b><small id="hTheme">Désert</small></div>
+    <div class="pill coins"><i class="coin"></i><b id="hCoins">0</b></div>
+    <button id="bPause" class="round" aria-label="Pause"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg></button>
+  </div>
+  <div class="armies">
+    <span class="army green"><i></i><b id="hUnits">0</b></span>
+    <span class="vs">VS</span>
+    <span class="army blue"><i></i><b id="hEnemies">0</b></span>
+  </div>
+  <div class="bottom">
+    <button id="bSuper" class="super"><span>SUPER</span><span class="bar"><i id="superFill"></i></span></button>
+  </div>
+  <p id="hint" class="hint">Maintiens le doigt pour tirer, glisse pour viser les portes</p>
+</div>
+
+<section id="menu" class="screen">
+  <div class="menu-in">
+    <img class="logo" src="icons/icon.svg" alt="" width="120" height="120">
+    <h1 class="title">SHEKI<span>BANG</span></h1>
+    <p class="tag">Tire, multiplie ton armée verte, écrase l'armée bleue.</p>
+    <div class="pill coins big"><i class="coin"></i><b id="mCoins">0</b></div>
+    <button id="bPlay" class="cta">JOUER<small id="mLevel">Niveau 1</small></button>
+    <h2 class="sub">Améliorations</h2>
+    <div class="upgrades" id="mUp"></div>
+    <div class="row">
+      <button id="bSound" class="ghost">Son : oui</button>
+      <button id="bInstall" class="ghost" hidden>Installer le jeu</button>
+      <button id="bNewRun" class="ghost">Nouvelle partie</button>
+    </div>
+  </div>
+</section>
+
+<section id="pause" class="screen modal" hidden>
+  <div class="card">
+    <h2>PAUSE</h2>
+    <button id="bResume" class="cta">REPRENDRE</button>
+    <button id="bQuit" class="ghost">Menu</button>
+  </div>
+</section>
+
+<section id="result" class="screen modal" hidden>
+  <div class="card">
+    <h2 id="rTitle">VICTOIRE !</h2>
+    <p id="rText"></p>
+    <div class="pill coins big"><i class="coin"></i><b id="rCoins">+0</b></div>
+    <div class="upgrades small" id="rUp"></div>
+    <button id="bNext" class="cta">NIVEAU 2</button>
+    <button id="bResMenu" class="ghost">Menu</button>
+  </div>
+</section>
+
+<script src="js/game.js"></script>
+</body>
+</html>
